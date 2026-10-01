@@ -1,0 +1,56 @@
+# Exercice 2 — Produire un artefact
+
+## Objectif
+Créer une CI déclenchable manuellement pour compiler le projet, vérifier que le fichier de build existe bien, sauvegarder le dossier `dist/` en tant qu'artefact et générer un résumé.
+
+## Déclencheur (`on`)
+- **Événement** : `workflow_dispatch` (déclenchement manuel).
+
+## Chaîne d'exécution
+
+```text
+workflow_dispatch → checkout → build → dist/ → artifact
+```
+
+## Spécifications détaillées du Workflow
+
+1. **Environnement d'exécution** :
+   - Runner : `runs-on: ubuntu-latest`.
+
+2. **Étapes (`steps`)** :
+   - **Checkout** : Récupérer le code source avec `actions/checkout@v7`.
+   - **Préparation de l'environnement** : Installer Node.js avec `actions/setup-node@v7`.
+   - **Installation des dépendances** : Exécuter `npm ci`.
+   - **Build** : Lancer le build via `npm run build` (qui transforme le code source en fichiers dans `dist/`).
+   - **Vérification d'existence du build** :
+     - Vérifier que le dossier/fichier de build `dist/` existe bien.
+     - **Obligation** : Échouer explicitement si `dist/` n'a pas été produit à l'aide d'une annotation GitHub :
+       ```bash
+       echo "::error::Le build n'a produit aucun fichier dans dist/"
+       exit 1
+       ```
+   - **Sauvegarde de l'artefact** :
+     - Sauvegarder `dist/` comme artefact avec `actions/upload-artifact@v7` :
+       ```yaml
+       - uses: actions/upload-artifact@v7
+         with:
+           name: build
+           path: dist/
+       ```
+   - **Résumé du build (`$GITHUB_STEP_SUMMARY`)** :
+     - Écrire un résumé facilitant l'identification du build, du commit (`${{ github.sha }}`) et de sa date, ainsi que des informations pertinentes.
+
+## Versions des actions (support de cours)
+> **Versions requises :**
+> - `actions/checkout@v7`
+> - `actions/setup-node@v7`
+> - `actions/upload-artifact@v7`
+
+## Ce qu'il faut retenir
+- `workflow_dispatch` permet de déclencher manuellement un workflow.
+- Le build transforme le code source en fichiers prêts à être utilisés.
+- Vérifier `dist/` permet d'échouer explicitement si le build n'a rien produit.
+- `::error::` crée une annotation visible dans l'interface GitHub.
+- Un artefact conserve les fichiers produits après la fin du job.
+- `upload-artifact` sert à sauvegarder ou à partager ces fichiers.
+- Le résumé facilite l'identification du build, du commit et de sa date.

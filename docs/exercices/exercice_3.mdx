@@ -1,0 +1,107 @@
+# Exercice 3 — Construire, tester et déployer
+
+## Objectif
+Concevoir un pipeline Node.js produisant son build dans `dist/`, déclenchable manuellement avec un paramètre permettant de choisir entre les environnements `staging` et `production`.
+Le pipeline doit construire l'application une seule fois, tester le même build sur plusieurs configurations, puis le déployer.
+
+## Déclencheur (`on`)
+- **Événement** : `workflow_dispatch` avec un paramètre de choix entre les environnements :
+  ```yaml
+  on:
+    workflow_dispatch:
+      inputs:
+        environment:
+          type: choice
+          description: "Environnement cible"
+          options:
+            - staging
+            - production
+  ```
+
+## Architecture et Partage des données
+
+```text
+                  ┌─ Node 20 / Ubuntu ─┐
+build → application ─┼─ Node 20 / Windows ─┼─→ deploy (staging | production)
+      (artefact)  ├─ Node 22 / Ubuntu ─┤
+                  └─ Node 22 / Windows ─┘
+```
+
+## Principe de Sécurité
+- **Moindre privilège** :
+  ```yaml
+  permissions:
+    contents: read
+  ```
+  Chaque job doit uniquement pouvoir lire le contenu du dépôt.
+
+---
+
+## Spécifications des Jobs
+
+### 1. Job `build`
+- **Runner** : `ubuntu-latest`.
+- **Rôle** : Mutualiser le build (produit une seule fois).
+- **Étapes** :
+  1. Récupérer le dépôt avec `actions/checkout@v7`.
+  2. Installer l'environnement avec `actions/setup-node@v7`.
+  3. Installer les dépendances (`npm ci`).
+  4. Exécuter le build : `npm run build`.
+  5. Publier `dist/` dans un artefact nommé impérativement **`application`** avec `actions/upload-artifact@v7`.
+
+---
+
+### 2. Job `test`
+- **Dépendance** : `needs: build` (attend la réussite de build afin de garantir que l'artefact existe avant les tests).
+- **Stratégie matricielle (`strategy.matrix`)** :
+  - Tester Node.js `20` et `22` sur `ubuntu-latest` et `windows-latest`.
+- **Contraintes d'exécution** :
+  - `max-parallel: 2` (exécuter au maximum deux variantes simultanément pour limiter les runners).
+  - `fail-fast: false` (ne pas interrompre les autres variantes en cas d'échec pour obtenir le résultat de chaque combinaison).
+- **Étapes** :
+  1. Préparer la version Node.js de la matrice avec `actions/setup-node@v7`.
+  2. Récupérer l'artefact **`application`** avec `actions/download-artifact@v7`.
+  3. Exécuter les tests : `npm test`.
+
+---
+
+### 3. Job `deploy`
+- **Dépendance** : `needs: test` (attend la réussite de toute la matrice de tests).
+- **Environnement** : Utiliser l'Environment choisi au déclenchement (`environment: ${{ inputs.environment }}`).
+- **Étapes** :
+  1. Récupérer l'artefact **`application`** avec `actions/download-artifact@v7`.
+  2. Afficher la variable d'Environment `vars.API_URL`.
+  3. Résumer la cible, l'URL et le commit dans `$GITHUB_STEP_SUMMARY` :
+     - Environnement cible
+     - URL de l'API (`${{ vars.API_URL }}`)
+     - Hash du commit (`${{ github.sha }}`)
+
+---
+
+## Configuration requise dans GitHub (Settings > Environments)
+Dans l'interface GitHub, préparer :
+- **`staging`** :
+  - Variable : `API_URL=https://api-staging.example.com`
+- **`production`** :
+  - Variable : `API_URL=https://api.example.com`
+  - Règle de protection : **approbation obligatoire** (*Required reviewers*).
+
+---
+
+## Versions des actions (support de cours)
+> **Versions requises :**
+> - `actions/checkout@v7`
+> - `actions/setup-node@v7`
+> - `actions/upload-artifact@v7`
+> - `actions/download-artifact@v7`
+
+---
+
+## Ce qu'il faut retenir
+- `needs: build` garantit que l'artefact existe avant les tests.
+- `max-parallel` limite le nombre de runners utilisés simultanément.
+- `fail-fast: false` permet d'obtenir le résultat de chaque combinaison.
+- `needs: test` attend toutes les variantes de la matrice.
+- `vars.API_URL` dépend de l'Environment sélectionné.
+- La protection de production est configurée dans GitHub.
+- `contents: read` applique ici le principe du moindre privilège.

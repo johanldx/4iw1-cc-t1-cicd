@@ -1,0 +1,50 @@
+# Exercice 1 — Valider un projet
+
+## Objectif
+Mettre en place un premier pipeline d'intégration continue (CI) automatique pour valider le code d'un projet Node.js à chaque nouveau commit.
+
+## Déclencheur (`on`)
+- **Événement** : `push` automatique sur le dépôt.
+
+## Chaîne d'exécution
+
+```text
+push → runner (ubuntu-latest) → checkout → setup → cache → install → test → summary
+```
+
+## Spécifications détaillées du Workflow
+
+1. **Environnement d'exécution** :
+   - Runner : `runs-on: ubuntu-latest`.
+
+2. **Étapes (`steps`)** :
+   - **Checkout** : Récupérer le code source avec `actions/checkout@v7`.
+   - **Configuration du runtime** : Installer Node.js avec `actions/setup-node@v7` (ex. `node-version: 24.18.0` ou version projet).
+   - **Mise en cache des dépendances** : Mettre en place le cache npm avec `actions/cache@v5` :
+     ```yaml
+     - uses: actions/cache@v5
+       with:
+         path: ~/.npm
+         key: npm-${{ hashFiles('package-lock.json') }}
+     ```
+   - **Installation des dépendances** : Exécuter `npm ci` (l'utilisation du cache ne remplace pas `npm ci`).
+   - **Tests unitaires** : Exécuter `npm test` (une step échoue si la commande retourne un code de sortie différent de 0).
+   - **Rapport de synthèse (`$GITHUB_STEP_SUMMARY`)** :
+     - Écrire dans `$GITHUB_STEP_SUMMARY` le statut du job (`${{ job.status }}`) et la référence du commit (`${{ github.ref }}` ou `${{ github.sha }}`).
+     - **Obligation** : Utiliser la condition `if: always()` sur cette étape pour garantir l'écriture du résumé même en cas d'échec des tests.
+
+## Versions des actions (support de cours)
+> **Versions requises :**
+> - `actions/checkout@v7`
+> - `actions/setup-node@v7`
+> - `actions/cache@v5`
+
+## Ce qu'il faut retenir
+- `push` déclenche automatiquement le workflow à chaque nouveau commit.
+- Chaque job s'exécute dans un runner isolé.
+- `checkout` rend le code du dépôt disponible dans le runner.
+- `setup-node` prépare la version de Node.js utilisée par le projet.
+- Le cache npm accélère les exécutions, mais ne remplace pas `npm ci`.
+- Une step échoue si sa commande retourne un code différent de zéro.
+- `if: always()` permet de produire un résumé même après un échec.
+- Les contextes `job` et `github` donnent accès aux informations de l'exécution.

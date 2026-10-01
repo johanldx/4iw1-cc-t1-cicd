@@ -1,0 +1,24 @@
+{
+  "name": "esgi-cicd-app",
+  "version": "1.0.0",
+  "description": "Application Node.js de démonstration CI/CD avec GitHub Actions",
+  "type": "module",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "build": "node build.js",
+    "test": "node --test"
+  },
+  "keywords": [
+    "ci-cd",
+    "github-actions",
+    "esgi",
+    "devops"
+  ],
+  "author": "Johan Ledoux",
+  "license": "UNLICENSED",
+  "private": true
+}

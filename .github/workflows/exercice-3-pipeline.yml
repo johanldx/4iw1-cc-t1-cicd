@@ -1,0 +1,96 @@
+name: "Exercice 3 - Build, Test et Déploiement"
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        description: "Environnement cible de déploiement"
+        required: true
+        options:
+          - staging
+          - production
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: "Build de l'application"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Récupérer le code source"
+        uses: actions/checkout@v7
+
+      - name: "Installer l'environnement Node.js"
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24.18.0
+
+      - name: "Installer les dépendances"
+        run: npm ci
+
+      - name: "Compiler l'application"
+        run: npm run build
+
+      - name: "Publier l'artefact application"
+        uses: actions/upload-artifact@v7
+        with:
+          name: application
+          path: dist/
+
+  test:
+    name: "Tests (Node ${{ matrix.node }} / ${{ matrix.os }})"
+    needs: build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      max-parallel: 2
+      fail-fast: false
+      matrix:
+        node: [20, 22]
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - name: "Récupérer le code source"
+        uses: actions/checkout@v7
+
+      - name: "Installer Node.js ${{ matrix.node }}"
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: "Récupérer l'artefact application"
+        uses: actions/download-artifact@v7
+        with:
+          name: application
+          path: dist/
+
+      - name: "Installer les dépendances"
+        run: npm ci
+
+      - name: "Exécuter les tests"
+        run: npm test
+
+  deploy:
+    name: "Déploiement sur ${{ inputs.environment }}"
+    needs: test
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: "Récupérer l'artefact application"
+        uses: actions/download-artifact@v7
+        with:
+          name: application
+          path: dist/
+
+      - name: "Afficher l'API URL"
+        run: |
+          echo "Déploiement en cours sur ${{ inputs.environment }}"
+          echo "API_URL = ${{ vars.API_URL }}"
+
+      - name: "Générer le résumé du déploiement"
+        if: always()
+        run: |
+          echo "## Déploiement terminé" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Environnement cible** : ${{ inputs.environment }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **API_URL** : ${{ vars.API_URL }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Commit** : \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
